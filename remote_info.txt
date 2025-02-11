@@ -1,0 +1,13 @@
+* remote origin
+  Fetch URL: https://github.com/Pedel123/jenkins-pipeline.git
+  Push  URL: https://github.com/Pedel123/jenkins-pipeline.git
+  HEAD branch: main
+  Remote branches:
+    main    tracked
+    testing tracked
+  Local branches configured for 'git pull':
+    main    merges with remote main
+    testing merges with remote testing
+  Local refs configured for 'git push':
+    main    pushes to main    (up to date)
+    testing pushes to testing (up to date)
