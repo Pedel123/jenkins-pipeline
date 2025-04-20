@@ -2,7 +2,8 @@ pipeline {
     agent {
         docker {
             image 'gradle:8.5.0-jdk17'
-            args '-v $HOME/.gradle:/home/gradle/.gradle' // caching gradle between runs
+            reuseNode true
+            args '-v $HOME/.gradle:/home/gradle/.gradle'
         }
     }
     options {
@@ -10,7 +11,7 @@ pipeline {
         timeout(time: 10, unit: 'MINUTES')
     }
     triggers {
-        pollSCM('* * * * *') // every minute for testing, adjust for production
+        pollSCM('* * * * *') // Check every minute for changes
     }
     stages {
         stage('Checkout') {
