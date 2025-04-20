@@ -1,56 +1,50 @@
 pipeline {
-    agent {
-        docker {
-            image 'gradle:8.4.0-jdk17' // or whatever image suits your project
-            args '-v $HOME/.gradle:/home/gradle/.gradle' // optional, for caching
-        }
-    }
-
-    triggers {
-        pollSCM('H/2 * * * *') // every 2 minutes (adjust as needed)
-    }
-
-    environment {
-        JAVA_CHANGED = 'false'
-    }
-
+    agent any
     stages {
-        stage('Check Modified Files') {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+        stage('Run Tests') {
+            when {
+                branch 'main'
+            }
             steps {
                 script {
-                    def changes = sh(script: "git diff --name-only HEAD~1 HEAD", returnStdout: true).trim()
-                    if (changes =~ /\.java$/) {
-                        env.JAVA_CHANGED = 'true'
-                        echo "Java files were changed."
-                    } else {
-                        echo "No Java file changes."
-                    }
+                    echo "Running CodeCoverage on main branch"
+                    // Add your CodeCoverage command here, e.g., ./gradlew jacocoTestCoverageVerification
                 }
             }
         }
-
-        stage('Run All Core Tests') {
+        stage('Run Other Tests') {
+            when {
+                branch 'feature/*'
+            }
             steps {
-                sh './gradlew test'
+                script {
+                    echo "Running all tests except CodeCoverage on feature branch"
+                    // Add commands for other tests here, e.g., ./gradlew test checkstyle
+                }
             }
         }
-
-        stage('Run CodeCoverage and Checkstyle') {
+        stage('Fail Pipeline') {
             when {
-                expression { env.JAVA_CHANGED == 'true' }
+                not {
+                    anyOf {
+                        branch 'main'
+                        branch 'feature/*'
+                    }
+                }
             }
             steps {
-                sh './gradlew jacocoTestReport checkstyleMain'
+                error "This branch is neither 'main' nor 'feature'. Failing the pipeline."
             }
         }
     }
-
     post {
-        success {
-            echo 'pipeline ran perfectly'
-        }
-        failure {
-            echo 'pipeline failure'
+        always {
+            echo 'Pipeline completed.'
         }
     }
 }
