@@ -1,50 +1,37 @@
 pipeline {
-    agent any
+    agent {
+        docker {
+            image 'gradle:8.5.0-jdk17'
+            args '-v $HOME/.gradle:/home/gradle/.gradle' // caching gradle between runs
+        }
+    }
+    options {
+        skipStagesAfterUnstable()
+        timeout(time: 10, unit: 'MINUTES')
+    }
+    triggers {
+        pollSCM('* * * * *') // every minute for testing, adjust for production
+    }
     stages {
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
-        stage('Run Tests') {
-            when {
-                branch 'main'
-            }
+        stage('Build') {
             steps {
-                script {
-                    echo "Running CodeCoverage on main branch"
-                    // Add your CodeCoverage command here, e.g., ./gradlew jacocoTestCoverageVerification
-                }
+                sh './gradlew clean build'
             }
         }
-        stage('Run Other Tests') {
-            when {
-                branch 'feature/*'
-            }
+        stage('Test') {
             steps {
-                script {
-                    echo "Running all tests except CodeCoverage on feature branch"
-                    // Add commands for other tests here, e.g., ./gradlew test checkstyle
-                }
-            }
-        }
-        stage('Fail Pipeline') {
-            when {
-                not {
-                    anyOf {
-                        branch 'main'
-                        branch 'feature/*'
-                    }
-                }
-            }
-            steps {
-                error "This branch is neither 'main' nor 'feature'. Failing the pipeline."
+                sh './gradlew test'
             }
         }
     }
     post {
         always {
-            echo 'Pipeline completed.'
+            archiveArtifacts artifacts: '**/build/libs/*.jar', fingerprint: true
         }
     }
 }
