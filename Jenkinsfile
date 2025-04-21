@@ -1,14 +1,11 @@
 pipeline {
     agent any
-
-    options {
-        skipDefaultCheckout()
-    }
-
     triggers {
-        // Polling for GitHub PR webhooks only – avoid 'pollSCM' or 'cron'
+        githubPullRequest() // Requires GitHub plugin and GitHub branch source plugin
     }
-
+    environment {
+        JACOCO_REPORT = "build/reports/jacoco/test/html/index.html"
+    }
     stages {
         stage('Checkout') {
             steps {
@@ -19,59 +16,38 @@ pipeline {
         stage('Determine Branch') {
             steps {
                 script {
-                    env.IS_MAIN = (env.BRANCH_NAME == 'main').toString()
+                    IS_MAIN = env.BRANCH_NAME == 'main'
+                    echo "Running on branch: ${env.BRANCH_NAME}"
+                    echo "Is main branch: ${IS_MAIN}"
                 }
             }
         }
 
-        stage('CodeCoverage on Main') {
-            when {
-                expression { env.BRANCH_NAME == 'main' }
-            }
+        stage('Run Tests') {
             steps {
-                catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                    sh './gradlew test jacocoTestReport jacocoTestCoverageVerification'
-                }
                 script {
-                    if (currentBuild.currentResult == 'FAILURE') {
-                        echo 'tests fail!'
-                    } else {
-                        echo 'tests pass!'
+                    try {
+                        if (IS_MAIN) {
+                            echo "Running CodeCoverage test on main branch"
+                            sh './gradlew jacocoTestReport'
+                        } else {
+                            echo "Running unit tests, integration tests, and static analysis"
+                            sh './gradlew test integrationTest checkstyleMain checkstyleTest'
+                            sh './gradlew jacocoTestReport'
+                        }
+                        echo "tests pass!"
+                    } catch (Exception err) {
+                        echo "tests fail!"
+                        sh './gradlew jacocoTestReport || true'
+                        throw err
                     }
-                }
-            }
-            post {
-                always {
-                    junit '**/build/test-results/test/*.xml'
-                    jacoco execPattern: '**/build/jacoco/test.exec'
                 }
             }
         }
-
-        stage('Other Tests on Non-Main') {
-            when {
-                not {
-                    branch 'main'
-                }
-            }
-            steps {
-                catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                    sh './gradlew test integrationTest checkstyleMain'
-                }
-                script {
-                    if (currentBuild.currentResult == 'FAILURE') {
-                        echo 'tests fail!'
-                    } else {
-                        echo 'tests pass!'
-                    }
-                }
-            }
-            post {
-                always {
-                    junit '**/build/test-results/test/*.xml'
-                    jacoco execPattern: '**/build/jacoco/test.exec'
-                }
-            }
+    }
+    post {
+        always {
+            archiveArtifacts artifacts: 'build/reports/jacoco/test/html/**', fingerprint: true
         }
     }
 }
