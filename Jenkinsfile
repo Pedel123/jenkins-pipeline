@@ -1,6 +1,3 @@
-<<<<<<< testing
-pipeline { agent any stages { stage("Testing Branch") { steps { sh "echo this is a test branch" } } } }
-=======
 pipeline {
     agent {
         docker {
@@ -11,7 +8,7 @@ pipeline {
     environment {
         DOCKER_REGISTRY = 'localhost:5001'
         REPO = 'repository'
-        BRANCH_NAME = env.BRANCH_NAME
+        // Removed invalid BRANCH_NAME assignment
     }
 
     stages {
@@ -24,7 +21,7 @@ pipeline {
         stage('Run Tests') {
             steps {
                 script {
-                    if (BRANCH_NAME == 'main') {
+                    if (env.BRANCH_NAME == 'main') {
                         sh './gradlew test jacocoTestReport'
                     } else {
                         sh './gradlew test'
@@ -36,14 +33,14 @@ pipeline {
         stage('Build Docker Image') {
             when {
                 allOf {
-                    expression { BRANCH_NAME != 'playground' }
+                    expression { env.BRANCH_NAME != 'playground' }
                     expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' }
                 }
             }
             steps {
                 script {
-                    def imageName = BRANCH_NAME == 'main' ? 'calculator' : 'calculator-feature'
-                    def version = BRANCH_NAME == 'main' ? '1.0' : '0.1'
+                    def imageName = env.BRANCH_NAME == 'main' ? 'calculator' : 'calculator-feature'
+                    def version = env.BRANCH_NAME == 'main' ? '1.0' : '0.1'
                     def fullImage = "${DOCKER_REGISTRY}/${REPO}/${imageName}:${version}"
 
                     sh "docker build -t ${fullImage} ."
@@ -64,4 +61,3 @@ pipeline {
         }
     }
 }
->>>>>>> playground
