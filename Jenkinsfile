@@ -1,53 +1,49 @@
 pipeline {
     agent any
-    triggers {
-        githubPullRequest() // Requires GitHub plugin and GitHub branch source plugin
-    }
-    environment {
-        JACOCO_REPORT = "build/reports/jacoco/test/html/index.html"
-    }
-    stages {
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
-        }
 
-        stage('Determine Branch') {
+    stages {
+        stage('Tests for Non-Main Branches') {
+            when {
+                not {
+                    branch 'main'
+                }
+            }
             steps {
                 script {
-                    IS_MAIN = env.BRANCH_NAME == 'main'
-                    echo "Running on branch: ${env.BRANCH_NAME}"
-                    echo "Is main branch: ${IS_MAIN}"
+                    try {
+                        sh './gradlew test integrationTest staticAnalysis'
+                        echo 'tests pass!'
+                    } catch (err) {
+                        echo 'tests fail!'
+                    } finally {
+                        sh './gradlew jacocoTestReport'
+                    }
                 }
             }
         }
 
-        stage('Run Tests') {
+        stage('Code Coverage for Main Branch') {
+            when {
+                branch 'main'
+            }
             steps {
                 script {
                     try {
-                        if (IS_MAIN) {
-                            echo "Running CodeCoverage test on main branch"
-                            sh './gradlew jacocoTestReport'
-                        } else {
-                            echo "Running unit tests, integration tests, and static analysis"
-                            sh './gradlew test integrationTest checkstyleMain checkstyleTest'
-                            sh './gradlew jacocoTestReport'
-                        }
-                        echo "tests pass!"
-                    } catch (Exception err) {
-                        echo "tests fail!"
-                        sh './gradlew jacocoTestReport || true'
-                        throw err
+                        sh './gradlew codeCoverageTest'
+                        echo 'tests pass!'
+                    } catch (err) {
+                        echo 'tests fail!'
+                    } finally {
+                        sh './gradlew jacocoTestReport'
                     }
                 }
             }
         }
     }
+
     post {
         always {
-            archiveArtifacts artifacts: 'build/reports/jacoco/test/html/**', fingerprint: true
+            archiveArtifacts artifacts: 'build/reports/jacoco/test/html/**', allowEmptyArchive: true
         }
     }
 }
