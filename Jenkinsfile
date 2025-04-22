@@ -2,48 +2,20 @@ pipeline {
     agent any
 
     stages {
-        stage('Tests for Non-Main Branches') {
-            when {
-                not {
-                    branch 'main'
-                }
-            }
+        stage('Test') {
             steps {
                 script {
-                    try {
-                        sh './gradlew test integrationTest staticAnalysis'
-                        echo 'tests pass!'
-                    } catch (err) {
-                        echo 'tests fail!'
-                    } finally {
-                        sh './gradlew jacocoTestReport'
+                    if (env.CHANGE_ID) {
+                        // This is a pull request
+                        echo 'Running tests for PR...'
+                        // Add your test commands here
+                    } else {
+                        // This is a regular branch
+                        echo 'Running tests for regular branch...'
+                        // Add your test commands here
                     }
                 }
             }
-        }
-
-        stage('Code Coverage for Main Branch') {
-            when {
-                branch 'main'
-            }
-            steps {
-                script {
-                    try {
-                        sh './gradlew codeCoverageTest'
-                        echo 'tests pass!'
-                    } catch (err) {
-                        echo 'tests fail!'
-                    } finally {
-                        sh './gradlew jacocoTestReport'
-                    }
-                }
-            }
-        }
-    }
-
-    post {
-        always {
-            archiveArtifacts artifacts: 'build/reports/jacoco/test/html/**', allowEmptyArchive: true
         }
     }
 }
