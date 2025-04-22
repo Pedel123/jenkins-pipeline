@@ -1,20 +1,47 @@
 pipeline {
     agent any
-
+    options {
+        skipDefaultCheckout()
+    }
+    triggers {
+        githubPullRequest()
+    }
     stages {
-        stage('Test') {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Conditional Tests') {
             steps {
                 script {
-                    if (env.CHANGE_ID) {
-                        // This is a pull request
-                        echo 'Running tests for PR...'
-                        // Add your test commands here
+                    def branch = env.BRANCH_NAME
+
+                    if (branch == 'main') {
+                        echo "Running CodeCoverage on main branch"
+                        try {
+                            sh './gradlew jacocoTestReport'
+                            echo "tests pass!"
+                        } catch (err) {
+                            echo "tests fail!"
+                        }
                     } else {
-                        // This is a regular branch
-                        echo 'Running tests for regular branch...'
-                        // Add your test commands here
+                        echo "Running unit, integration, and static analysis on ${branch}"
+                        try {
+                            sh './gradlew test integrationTest checkstyleMain checkstyleTest jacocoTestReport'
+                            echo "tests pass!"
+                        } catch (err) {
+                            echo "tests fail!"
+                        }
                     }
                 }
+            }
+        }
+
+        stage('Publish Jacoco Report') {
+            steps {
+                jacoco execPattern: '**/build/jacoco/*.exec', classPattern: '**/classes', sourcePattern: '**/src/main/java', exclusionPattern: ''
             }
         }
     }
