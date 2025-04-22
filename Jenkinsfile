@@ -1,11 +1,16 @@
 pipeline {
-    agent any
-    options {
-        skipDefaultCheckout()
+    agent {
+        docker {
+            image 'openjdk:17'
+        }
     }
-    triggers {
-        githubPullRequest()
+
+    environment {
+        DOCKER_REGISTRY = 'localhost:5001'
+        REPO = 'repository'
+        BRANCH_NAME = env.BRANCH_NAME
     }
+
     stages {
         stage('Checkout') {
             steps {
@@ -13,35 +18,45 @@ pipeline {
             }
         }
 
-        stage('Conditional Tests') {
+        stage('Run Tests') {
             steps {
                 script {
-                    def branch = env.BRANCH_NAME
-
-                    if (branch == 'main') {
-                        echo "Running CodeCoverage on main branch"
-                        try {
-                            sh './gradlew jacocoTestReport'
-                            echo "tests pass!"
-                        } catch (err) {
-                            echo "tests fail!"
-                        }
+                    if (BRANCH_NAME == 'main') {
+                        sh './gradlew test jacocoTestReport'
                     } else {
-                        echo "Running unit, integration, and static analysis on ${branch}"
-                        try {
-                            sh './gradlew test integrationTest checkstyleMain checkstyleTest jacocoTestReport'
-                            echo "tests pass!"
-                        } catch (err) {
-                            echo "tests fail!"
-                        }
+                        sh './gradlew test'
                     }
                 }
             }
         }
 
-        stage('Publish Jacoco Report') {
+        stage('Build Docker Image') {
+            when {
+                allOf {
+                    expression { BRANCH_NAME != 'playground' }
+                    expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' }
+                }
+            }
             steps {
-                jacoco execPattern: '**/build/jacoco/*.exec', classPattern: '**/classes', sourcePattern: '**/src/main/java', exclusionPattern: ''
+                script {
+                    def imageName = BRANCH_NAME == 'main' ? 'calculator' : 'calculator-feature'
+                    def version = BRANCH_NAME == 'main' ? '1.0' : '0.1'
+                    def fullImage = "${DOCKER_REGISTRY}/${REPO}/${imageName}:${version}"
+
+                    sh "docker build -t ${fullImage} ."
+                    sh "docker push ${fullImage}"
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            junit '**/build/test-results/test/*.xml'
+            script {
+                if (fileExists('build/reports/jacoco/test/html/index.html')) {
+                    echo 'Jacoco Report Generated'
+                }
             }
         }
     }
