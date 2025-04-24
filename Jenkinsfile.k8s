@@ -1,0 +1,43 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Deploy to Kubernetes') {
+            steps {
+                echo 'Applying Kubernetes files...'
+                sh 'kubectl apply -f k8s/hazelcast.yaml'
+                sh 'kubectl apply -f k8s/calculator.yaml'
+                // Wait a few seconds for pods to start
+                sh 'sleep 10'
+            }
+        }
+
+        stage('Run Calculator Tests') {
+            steps {
+                script {
+                    echo 'Running calculator division tests...'
+
+                    def result = sh(script: "curl -s calculator-service:8080/div\\?a=6\\&b=2", returnStdout: true).trim()
+                    if (result != "3") {
+                        error("Test failed: 6 / 2 did not return 3")
+                    }
+
+                    def errorResult = sh(script: "curl -s calculator-service:8080/div\\?a=6\\&b=0", returnStdout: true).trim()
+                    if (!errorResult.toLowerCase().contains("error")) {
+                        error("Divide-by-zero test failed: did not return an error message")
+                    }
+
+                    echo "All division tests passed"
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            echo 'Cleaning up Kubernetes deployments...'
+            sh 'kubectl delete -f k8s/calculator.yaml || true'
+            sh 'kubectl delete -f k8s/hazelcast.yaml || true'
+        }
+    }
+}
